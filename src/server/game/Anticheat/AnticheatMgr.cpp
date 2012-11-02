@@ -20,7 +20,7 @@
 #include "gamePCH.h"
 #include "AnticheatMgr.h"
 #include "Chat.h"
-#include "../ArkCHat/IRCClient.h"
+#include "../ArkChat/IRCClient.h"
 
 AnticheatMgr::AnticheatMgr()
 {
@@ -305,37 +305,18 @@ void AnticheatMgr::SpeedHackDetection(Player* player,MovementInfo movementInfo)
     float *speed = 0;
     if (moveType == MOVE_RUN)
     {
-        SpellEntry* spellInfo = NULL;
-		if (player->HasAura(2645))
-		{
-			spellInfo = (SpellEntry*) sSpellStore.LookupEntry(2645);
-			speed = spellInfo->EffectValueMultiplier;
-		}
-		if (player->HasAura(17002))
-		{
-			spellInfo = (SpellEntry*) sSpellStore.LookupEntry(17002);
-			speed = spellInfo->EffectValueMultiplier;
-		}
-		if (player->HasAura(24866))
-		{
-			spellInfo = (SpellEntry*) sSpellStore.LookupEntry(24866);
-			speed = spellInfo->EffectValueMultiplier;
-		}
-		if (player->HasAura(32223))
-		{
-			spellInfo = (SpellEntry*) sSpellStore.LookupEntry(32223);
-			speed = spellInfo->EffectValueMultiplier;
-		}
-		if (player->HasAura(10724))
-		{
-			spellInfo = (SpellEntry*) sSpellStore.LookupEntry(10724);
-			speed = spellInfo->EffectValueMultiplier;
-		}
-		if (player->HasAura(7189))
-		{
-			spellInfo = (SpellEntry*) sSpellStore.LookupEntry(7189);
-			speed = spellInfo->EffectValueMultiplier;
-		}
+        if (
+        player->HasAura(2645)  ||   // 2645 -> Ghost Worlf
+        player->HasAura(17002) ||  // 17002 -> Feral Swiftness 1
+        player->HasAura(24866) ||  // 24866 -> Feral Swiftness 2
+        player->HasAura(32223) ||  // 32223 -> Crusader Aura < do we need this????
+        player->HasAura(13141) ||  // 13141 -> Gnomish Rocket Boots
+        player->HasAura(8892)  ||  // 8892 -> Goblin Rocket Boots
+        player->HasAura(51721) ||  // 51721 -> Dominion Over Acherus
+        player->HasAura(87840)     // 87840 -> Running Wild
+        // this isnt good, need way to work out speed of these auras instead of just skipping ppl with them.
+        )
+        return;
     }
 
     if (moveType == MOVE_FLIGHT)

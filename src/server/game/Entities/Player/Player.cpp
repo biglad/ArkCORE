@@ -595,9 +595,16 @@ void KillRewarder::_RewardGroup ()
 
             // 3.1.3. Reward each group member (even dead or corpse) within reward distance.
             for (GroupReference* itr = _group->GetFirstMember(); itr != NULL; itr = itr->next())
+            {
                 if (Player* member = itr->getSource())
+                {
                     if (member->IsAtGroupRewardDistance(_victim))
+                    {
                         _RewardPlayer(member, isDungeon);
+                        member->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_SPECIAL_PVP_KILL, 1, 0, _victim);
+                    }
+                }
+            }
         }
     }
 }
@@ -1361,19 +1368,6 @@ bool Player::Create (uint32 guidlow, const std::string& name, uint8 race, uint8 
         UpdateMaxPower(POWER_MANA);          // Update max Mana (for add bonus from intellect)
         SetPower(POWER_MANA, GetMaxPower(POWER_MANA));
     }
-
-    //if (getPowerType() == POWER_RUNIC_POWER)
-    //{
-    //    SetPower(POWER_RUNE, 8);
-    //    SetMaxPower(POWER_RUNE, 8);
-    //    SetPower(POWER_RUNIC_POWER, 0);
-    //    SetMaxPower(POWER_RUNIC_POWER, 1000);
-    //}
-    //if (getPowerType() == POWER_FOCUS)
-    //{
-    //    SetPower(POWER_FOCUS, 100);
-    //    SetMaxPower(POWER_FOCUS, 100);
-    //}
 
     if (getPowerType() != POWER_MANA)          // hide additional mana bar if we have no mana
     {
@@ -2790,49 +2784,64 @@ void Player::RemoveFromWorld ()
 		WorldDatabase.PExecute("DELETE FROM `IRC_Inchan` WHERE `guid` = '%d'", GetSession()->GetPlayer()->GetGUID());
 }
 
-void Player::RegenerateAll ()
+void Player::RegenerateAll()
 {
-    //if (m_regenTimer <= 500)
+    //if (_regenTimer <= 500)
     //    return;
 
     m_regenTimerCount += m_regenTimer;
+
     if (getClass() == CLASS_PALADIN)
         m_holyPowerRegenTimerCount += m_regenTimer;
 
-    Regenerate(POWER_ENERGY);
+    if (getClass() == CLASS_HUNTER)
+        m_focusRegenTimerCount += m_regenTimer;
 
+    Regenerate(POWER_ENERGY);
     Regenerate(POWER_MANA);
 
     // Runes act as cooldowns, and they don't need to send any data
     if (getClass() == CLASS_DEATH_KNIGHT)
-        for (uint32 i = 0; i < MAX_RUNES; i += 2)
+    {
+        for (uint8 i = 0; i < MAX_RUNES; i += 2)
         {
-            uint32 cd1 = GetRuneCooldown(i);
-            uint32 cd2 = GetRuneCooldown(i + 1);
+            uint8 runeToRegen = i;
+            uint32 cd = GetRuneCooldown(i);
+            uint32 secondRuneCd = GetRuneCooldown(i + 1);
+            // Regenerate second rune of the same type only after first rune is off the cooldown
+            if (secondRuneCd && (cd > secondRuneCd || !cd))
+            {
+                runeToRegen = i + 1;
+                cd = secondRuneCd;
+            }
 
-            if (cd1 && (!cd2 || cd1 <= cd2))
-                SetRuneCooldown(i, (cd1 > m_regenTimer) ? cd1 - m_regenTimer : 0);
-            else if (cd2)
-                SetRuneCooldown(i + 1, (cd2 > m_regenTimer) ? cd2 - m_regenTimer : 0);
+            if (cd)
+                SetRuneCooldown(runeToRegen, (cd > m_regenTimer) ? cd - m_regenTimer : 0);
         }
+    }
 
     if (m_regenTimerCount >= 2000)
     {
         // Not in combat or they have regeneration
-        if (!isInCombat() || HasAuraType(SPELL_AURA_MOD_REGEN_DURING_COMBAT) || HasAuraType(SPELL_AURA_MOD_HEALTH_REGEN_IN_COMBAT) || IsPolymorphed())
+        if (!isInCombat() || IsPolymorphed() || m_baseHealthRegen ||
+            HasAuraType(SPELL_AURA_MOD_REGEN_DURING_COMBAT) ||
+            HasAuraType(SPELL_AURA_MOD_HEALTH_REGEN_IN_COMBAT))
         {
             RegenerateHealth();
         }
 
         Regenerate(POWER_RAGE);
-        if (getClass() == CLASS_PALADIN)
-            Regenerate(POWER_HOLY_POWER);
+
         if (getClass() == CLASS_DEATH_KNIGHT)
             Regenerate(POWER_RUNIC_POWER);
-        if (getClass() == CLASS_HUNTER)
-            Regenerate(POWER_FOCUS);
 
         m_regenTimerCount -= 2000;
+    }
+
+    if (m_focusRegenTimerCount >= 1000 && getClass() == CLASS_HUNTER)
+    {
+        Regenerate(POWER_FOCUS);
+        m_focusRegenTimerCount -= 1000;
     }
 
     if (m_holyPowerRegenTimerCount >= 10000 && getClass() == CLASS_PALADIN)
@@ -2844,9 +2853,10 @@ void Player::RegenerateAll ()
     m_regenTimer = 0;
 }
 
-void Player::Regenerate (Powers power)
+void Player::Regenerate(Powers power)
 {
     uint32 maxValue = GetMaxPower(power);
+
     if (!maxValue)
         return;
 
@@ -2859,61 +2869,65 @@ void Player::Regenerate (Powers power)
     float addvalue = 0.0f;
 
     //powers now benefit from haste.
-    float haste = (2 - GetFloatValue(UNIT_MOD_CAST_SPEED));
+    // 1) Hunter's focus
+    float rangedHaste = GetFloatValue(PLAYER_FIELD_MOD_RANGED_HASTE);
+    // 2) Rogue's Energy
+    float meleeHaste = GetFloatValue(PLAYER_FIELD_MOD_HASTE);
+    // 3) Mana regen
+    float spellHaste = GetFloatValue(UNIT_MOD_CAST_SPEED);
 
     switch (power)
     {
-    case POWER_MANA:
-    {
-        float ManaIncreaseRate = sWorld->getRate(RATE_POWER_MANA);
+        case POWER_MANA:
+        {
+            bool recentCast = IsUnderLastManaUseEffect();
+            float ManaIncreaseRate = sWorld->getRate(RATE_POWER_MANA);
 
-        if (getLevel() < 15)
-            ManaIncreaseRate = sWorld->getRate(RATE_POWER_MANA) * (2.066f - (getLevel() * 0.066f));
+            if (getLevel() < 15)
+                ManaIncreaseRate = sWorld->getRate(RATE_POWER_MANA) * (2.066f - (getLevel() * 0.066f));
 
-        if (isInCombat())          // Trinity updates Mana in intervals of 2s, which is correct
-            addvalue += GetFloatValue(UNIT_FIELD_POWER_REGEN_INTERRUPTED_FLAT_MODIFIER) * ManaIncreaseRate * 0.001f * m_regenTimer * haste;
-        else
-            addvalue += GetFloatValue(UNIT_FIELD_POWER_REGEN_FLAT_MODIFIER) * ManaIncreaseRate * 0.001f * m_regenTimer * haste;
-    }
-        break;
-    case POWER_RAGE:          // Regenerate rage
-    {
-        if (!isInCombat() && !HasAuraType(SPELL_AURA_INTERRUPT_REGEN))
-        {
-            float RageDecreaseRate = sWorld->getRate(RATE_POWER_RAGE_LOSS);
-            addvalue += -20 * RageDecreaseRate / haste;          // 2 rage by tick (= 2 seconds => 1 rage/sec)
+            if (recentCast) // SkyFire Updates Mana in intervals of 2s, which is correct
+                addvalue += GetFloatValue(UNIT_FIELD_POWER_REGEN_INTERRUPTED_FLAT_MODIFIER) *  ((0.001f * m_regenTimer) + CalculatePctF(0.001f, spellHaste)) * ManaIncreaseRate;
+            else
+                addvalue += GetFloatValue(UNIT_FIELD_POWER_REGEN_FLAT_MODIFIER) *  ((0.001f * m_regenTimer) + CalculatePctF(0.001f, spellHaste)) * ManaIncreaseRate;
+            break;
         }
-    }
-        break;
-    case POWER_FOCUS:
-        addvalue = 12 * haste;
-        break;
-    case POWER_HOLY_POWER:
-    {
-        if (!isInCombat() && !HasAuraType(SPELL_AURA_INTERRUPT_REGEN))
+        case POWER_RAGE:                                                  // Regenerate rage
         {
-            addvalue += -1;
+            if (!isInCombat() && !HasAuraType(SPELL_AURA_INTERRUPT_REGEN))
+            {
+                float RageDecreaseRate = sWorld->getRate(RATE_POWER_RAGE_LOSS);
+                addvalue += -20 * RageDecreaseRate / meleeHaste;               // 2 rage by tick (= 2 seconds => 1 rage/sec)
+            }
+            break;
         }
-        break;
-    }
-    case POWER_ENERGY:          // Regenerate energy (rogue)
-        addvalue += 0.01f * m_regenTimer * haste * sWorld->getRate(RATE_POWER_ENERGY);
-        break;
-    case POWER_RUNIC_POWER:
-    {
-        if (!isInCombat() && !HasAuraType(SPELL_AURA_INTERRUPT_REGEN))
+        case POWER_FOCUS:
+            addvalue += (6.0f + CalculatePctF(6.0f, rangedHaste)) * sWorld->getRate(RATE_POWER_FOCUS);
+            break;
+        case POWER_HOLY_POWER:                                           // Regenerate holy power
         {
-            float RunicPowerDecreaseRate = sWorld->getRate(RATE_POWER_RUNICPOWER_LOSS);
-            addvalue += -30 * RunicPowerDecreaseRate;          // 3 RunicPower by tick
+            if (!isInCombat())
+                addvalue += -1.0f;                                       // remove 1 each 10 sec
+            break;
         }
-    }
-        break;
-    case POWER_RUNE:
-    case POWER_HAPPINESS:
-    case POWER_HEALTH:
-        break;
-    default:
-        break;
+        case POWER_ENERGY:                                               // Regenerate energy (rogue)
+            addvalue += ((0.01f * m_regenTimer) + CalculatePctF(0.01f, meleeHaste)) * sWorld->getRate(RATE_POWER_ENERGY);
+            break;
+        case POWER_RUNIC_POWER:
+        {
+            if (!isInCombat() && !HasAuraType(SPELL_AURA_INTERRUPT_REGEN))
+            {
+                float RunicPowerDecreaseRate = sWorld->getRate(RATE_POWER_RUNICPOWER_LOSS);
+                addvalue += -30 * RunicPowerDecreaseRate;                // 3 RunicPower by tick
+            }
+            break;
+        }
+        case POWER_RUNE:
+        case POWER_HAPPINESS:
+        case POWER_HEALTH:
+            break;
+        default:
+            break;
     }
 
     // Mana regen calculated in Player::UpdateManaRegen()
@@ -2922,7 +2936,7 @@ void Player::Regenerate (Powers power)
         AuraEffectList const& ModPowerRegenPCTAuras = GetAuraEffectsByType(SPELL_AURA_MOD_POWER_REGEN_PERCENT);
         for (AuraEffectList::const_iterator i = ModPowerRegenPCTAuras.begin(); i != ModPowerRegenPCTAuras.end(); ++i)
             if (Powers((*i)->GetMiscValue()) == power)
-                addvalue *= ((*i)->GetAmount() + 100) / 100.0f;
+                AddPctN(addvalue, (*i)->GetAmount());
 
         // Butchery requires combat for this effect
         if (power != POWER_RUNIC_POWER || isInCombat())
@@ -2970,7 +2984,7 @@ void Player::Regenerate (Powers power)
         else
             m_powerFraction[power] = addvalue - integerValue;
     }
-    if (m_regenTimerCount >= 2000 || m_holyPowerRegenTimerCount >= 10000)
+    if (m_regenTimerCount >= 2000)
         SetPower(power, curValue);
     else
         UpdateUInt32Value(UNIT_FIELD_POWER1 + power, curValue);
@@ -7345,6 +7359,9 @@ void Player::CheckAreaExploreAndOutdoor ()
                 {
                     XP = uint32(sObjectMgr->GetBaseXP(p->area_level) * sWorld->getRate(RATE_XP_EXPLORE));
                 }
+                
+                float premium_rate = GetSession()->IsPremium() ? sWorld->getRate(RATE_XP_EXPLORE_PREMIUM) : 1.0f;
+                XP = XP * premium_rate;
 
                 GiveXP(XP, NULL);
                 SendExplorationExperience(area, XP);
@@ -15816,6 +15833,9 @@ void Player::RewardQuest (Quest const *pQuest, uint32 reward, Object* questGiver
     Unit::AuraEffectList const& ModXPPctAuras = GetAuraEffectsByType(SPELL_AURA_MOD_XP_QUEST_PCT);
     for (Unit::AuraEffectList::const_iterator i = ModXPPctAuras.begin(); i != ModXPPctAuras.end(); ++i)
         XP = uint32(XP * (1.0f + (*i)->GetAmount() / 100.0f));
+        
+    float premium_rate = GetSession()->IsPremium() ? sWorld->getRate(RATE_XP_QUEST_PREMIUM) : 1.0f;
+    XP = XP * premium_rate;
 
     int32 moneyRew = 0;
     if (getLevel() < sWorld->getIntConfig(CONFIG_MAX_PLAYER_LEVEL))
@@ -23967,21 +23987,18 @@ WorldObject* Player::GetViewpoint () const
     return NULL;
 }
 
-bool Player::CanUseBattlegroundObject ()
+bool Player::CanUseBattlegroundObject(GameObject* gameobject)
 {
-    // TODO : some spells gives player ForceReaction to one faction (ReputationMgr::ApplyForceReaction)
-    // maybe gameobject code should handle that ForceReaction usage
+    FactionTemplateEntry const* playerFaction = getFactionTemplateEntry();
+    FactionTemplateEntry const* faction = sFactionTemplateStore.LookupEntry(gameobject->GetUInt32Value(GAMEOBJECT_FACTION));
+    
+    if (playerFaction && faction && !playerFaction->IsFriendlyTo(*faction))
+        return false;
     // BUG: sometimes when player clicks on flag in AB - client won't send gameobject_use, only gameobject_report_use packet
-    return (          //InBattleground() &&                          // in battleground - not need, check in other cases
-                      //!IsMounted() && - not correct, player is dismounted when he clicks on flag
-                      //player cannot use object when he is invulnerable (immune)
-    !isTotalImmune() &&          // not totally immune
-    //i'm not sure if these two are correct, because invisible players should get visible when they click on flag
-    !HasStealthAura() &&          // not stealthed
-    !HasInvisibilityAura() &&          // not invisible
-    !HasAura(SPELL_RECENTLY_DROPPED_FLAG) &&          // can't pickup
-    isAlive()          // live player
-    );
+    // Note: Mount, stealth and invisibility will be removed when used
+    return (!isTotalImmune() &&                            // Damage immune
+            !HasAura(SPELL_RECENTLY_DROPPED_FLAG) &&       // Still has recently held flag debuff
+            isAlive());                                    // Alive
 }
 
 bool Player::CanCaptureTowerPoint ()
