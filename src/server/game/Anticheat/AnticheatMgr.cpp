@@ -371,7 +371,7 @@ void AnticheatMgr::SpeedHackDetection(Player* player,MovementInfo movementInfo)
     uint32 speedRate = (uint32)(player->GetSpeed(UnitMoveType(moveType)) + movementInfo.j_xyspeed);
 
 	// edit speedrate for auras.....
-	speedRate = speedRate+(uint32)speed;
+	speedRate = speedRate+speed;
 
     // how long the player took to move to here.
     uint32 timeDiff = getMSTimeDiff(player->anticheatData.lastMovementInfo.time,movementInfo.time);
