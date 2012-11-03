@@ -284,6 +284,13 @@ void AnticheatMgr::SpeedHackDetection(Player* player,MovementInfo movementInfo)
         
     uint32 distance2D = (uint32)movementInfo.pos.GetExactDist2d(&player->anticheatData.lastMovementInfo.pos);
     uint8 moveType = 0;
+	float auraspeed = 0.0f;
+	int32 main_speed_mod = 0;
+    int32 main_speed_mod_fly = 0;
+    float stack_bonus = 0.0f;
+    float stack_bonus_fly = 0.0f;
+    float non_stack_bonus = 0.0f;
+    float main_speed_mod_swim = 0.0f;
 
     // we need to know HOW is the player moving
     // TO-DO: Should we check the incoming movement flags?
@@ -299,26 +306,12 @@ void AnticheatMgr::SpeedHackDetection(Player* player,MovementInfo movementInfo)
         
     if (moveType == MOVE_SWIM)
     {
-        if (
-        player->HasAura(1066) ||  // 1066 -> Aquatic form
-        player->HasAura(30174) || // 30174 -> Riding Turtle
-        player->HasAura(64731) || // 64731 -> Sea Turtle
-        player->HasAura(7840)  || // 7840 -> Swim Speed
-        player->HasAura(88026) || // 88026 -> Silversnap Swim Tonic Master
-        player->HasAura(75627) || // 75627 -> Speedbarge Diving Helm
-        player->HasAura(30430)    // 30430 -> Embrace of the Serpent
-        // this isnt good, need way to work out speed of these auras instead of just skipping ppl with them.
-        )
-        return;
+        // no need for mount check
+		main_speed_mod_swim = player->GetMaxPositiveAuraModifier(SPELL_AURA_MOD_INCREASE_SWIM_SPEED);
+		non_stack_bonus = (100.0f + player->GetMaxPositiveAuraModifier(SPELL_AURA_MOD_SPEED_NOT_STACK)) / 100.0f;
+		auraspeed = main_speed_mod_swim + non_stack_bonus;
 	}
 
-    float auraspeed = 0;
-    int32 main_speed_mod = 0;
-    int32 main_speed_mod_fly = 0;
-    float stack_bonus = 0.0f;
-    float stack_bonus_fly = 0.0f;
-    float non_stack_bonus = 0.0f;
-    float main_speed_mod_swim = 0.0f;
     if (moveType == MOVE_RUN)
     {
         if (player->IsMounted())
@@ -326,26 +319,24 @@ void AnticheatMgr::SpeedHackDetection(Player* player,MovementInfo movementInfo)
             main_speed_mod = player->GetMaxPositiveAuraModifier(SPELL_AURA_MOD_INCREASE_MOUNTED_SPEED);
             stack_bonus = player->GetTotalAuraMultiplier(SPELL_AURA_MOD_MOUNTED_SPEED_ALWAYS);
             non_stack_bonus = (100.0f + player->GetMaxPositiveAuraModifier(SPELL_AURA_MOD_MOUNTED_SPEED_NOT_STACK)) / 100.0f;
-            main_speed_mod_fly = player->GetMaxPositiveAuraModifier(SPELL_AURA_MOD_INCREASE_VEHICLE_FLIGHT_SPEED);
-            stack_bonus_fly = player->GetTotalAuraMultiplier(SPELL_AURA_MOD_VEHICLE_SPEED_ALWAYS);
-            main_speed_mod_swim = player->GetMaxPositiveAuraModifier(SPELL_AURA_MOD_INCREASE_SWIM_SPEED);
-            auraspeed = main_speed_mod + stack_bonus + non_stack_bonus + main_speed_mod_fly + stack_bonus_fly + main_speed_mod_swim - 4; // remove 4 for tollerance uint32 cast
+            auraspeed += main_speed_mod + stack_bonus + non_stack_bonus; 
         }
         else
         {
             main_speed_mod = player->GetMaxPositiveAuraModifier(SPELL_AURA_MOD_INCREASE_SPEED);
             stack_bonus = player->GetTotalAuraMultiplier(SPELL_AURA_MOD_SPEED_ALWAYS);
             non_stack_bonus = (100.0f + player->GetMaxPositiveAuraModifier(SPELL_AURA_MOD_SPEED_NOT_STACK)) / 100.0f;
-            main_speed_mod_swim = player->GetMaxPositiveAuraModifier(SPELL_AURA_MOD_INCREASE_SWIM_SPEED);
-            auraspeed = main_speed_mod + stack_bonus + non_stack_bonus + main_speed_mod_swim - 3; // remove 3 for tollerance uint32 cast
+            auraspeed += main_speed_mod + stack_bonus + non_stack_bonus;
         }
     }
 
     if (moveType == MOVE_FLIGHT)
     {
-    // do we need to check speed of flying????????
-    //if so were is dif mount speeds worked out????
-    return;
+		// no need for mount check
+		main_speed_mod_fly = player->GetMaxPositiveAuraModifier(SPELL_AURA_MOD_INCREASE_VEHICLE_FLIGHT_SPEED);
+		stack_bonus_fly = player->GetTotalAuraMultiplier(SPELL_AURA_MOD_VEHICLE_SPEED_ALWAYS);
+		non_stack_bonus = (100.0f + player->GetMaxPositiveAuraModifier(SPELL_AURA_MOD_SPEED_NOT_STACK)) / 100.0f;
+		auraspeed += main_speed_mod_fly + stack_bonus_fly + non_stack_bonus;
     }
  
     // how many yards the player can do in one sec.
@@ -358,8 +349,8 @@ void AnticheatMgr::SpeedHackDetection(Player* player,MovementInfo movementInfo)
         timeDiff = 1;
 
     // this is the distance doable by the player in 1 sec, using the time done to move to this point.
-	//this has changed since 335a was 1000 in 406a its 1100
-    uint32 clientSpeedRate = (distance2D * 1100 / timeDiff) + auraspeed;
+	//this has changed since 335a was 1000 in 406a its 1150
+    uint32 clientSpeedRate = (distance2D * 1150 / timeDiff) + auraspeed;
 
     sLog->outError("fallxy %f fallz %f Distance2D %u clientSpeedRate %u speedRate %u auraspeed %u timeDiff %u ",movementInfo.j_xyspeed, movementInfo.j_zspeed,distance2D,clientSpeedRate,speedRate,auraspeed,timeDiff);
     
