@@ -368,7 +368,7 @@ void AnticheatMgr::SpeedHackDetection(Player* player,MovementInfo movementInfo)
     
  
     // how many yards the player can do in one sec.
-    uint32 speedRate = (uint32)(player->GetSpeed(UnitMoveType(moveType)) + movementInfo.j_xyspeed);
+    uint32 speedRate = (uint32)(player->GetSpeed(UnitMoveType(moveType)) + movementInfo.j_xyspeed + auraspeed);
 
     // how long the player took to move to here.
     uint32 timeDiff = getMSTimeDiff(player->anticheatData.lastMovementInfo.time,movementInfo.time);
@@ -380,10 +380,10 @@ void AnticheatMgr::SpeedHackDetection(Player* player,MovementInfo movementInfo)
 	//this has changed since 335a was 1000 in 406a its 1100
     uint32 clientSpeedRate = distance2D * 1100 / timeDiff;
 
-    sLog->outError("fallxy %f fallz %f Distance2D %u clientSpeedRate %u speedRate %u auraspeed %u timeDiff %u ",movementInfo.j_xyspeed, movementInfo.j_zspeed,distance2D,clientSpeedRate,speedRate,auraspeed,timeDiff);
+    sLog->outError("fallxy %f fallz %f Distance2D %u clientSpeedRate %u speedRate %u auraspeed %f timeDiff %u ",movementInfo.j_xyspeed, movementInfo.j_zspeed,distance2D,clientSpeedRate,speedRate,auraspeed,timeDiff);
     
     // we did the (uint32) cast to accept a margin of tolerance
-    if ((clientSpeedRate+auraspeed) > (speedRate+auraspeed))
+    if (clientSpeedRate > speedRate)
     {
         BuildReport(player,SPEED_HACK_REPORT);
         sLog->outError("Speed Hack Player LowGuid %u",player->GetGUIDLow());
