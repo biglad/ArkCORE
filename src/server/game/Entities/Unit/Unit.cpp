@@ -5989,12 +5989,6 @@ bool Unit::HandleDummyAuraProc (Unit *pVictim, uint32 damage, AuraEffect* trigge
             triggered_spell_id = 26654;
             break;
         }
-            // Victorious
-        case 32216:
-        {
-            //RemoveAura(dummySpell->Id);
-            //return false;
-        }
             // Improved Spell Reflection
         case 59088:
         case 59089:
@@ -8466,6 +8460,30 @@ bool Unit::HandleAuraProc (Unit * pVictim, uint32 damage, Aura * triggeredByAura
     }
     case SPELLFAMILY_MAGE:
     {
+        // Improved Polymorph
+        case 118:
+        {
+            *handled = true; 
+            Unit* caster = triggeredByAura->GetCaster();
+
+            if (!caster || !pVictim)
+                return false;
+            // Rank 1          // Cooldown Marker
+            if (caster->HasAura(11210) && !pVictim->HasAura(87515, caster->GetGUID()))
+            {
+                CastSpell(this,83046,true,NULL,NULL,caster->GetGUID()); // 1.5s stun
+                CastSpell(this,87515,true,NULL,NULL,caster->GetGUID()); // Cooldown marker
+                return true;
+            }           
+            // Rank 2
+            if (caster->HasAura(12592) && !this->HasAura(87515, caster->GetGUID()))
+            {
+            CastSpell(this,83047,true,NULL,NULL,caster->GetGUID()); // 3s stun
+            CastSpell(this,87515,true,NULL,NULL,caster->GetGUID()); // Cooldown marker
+            return true;
+            }
+        break;
+        }
         // Combustion
         switch (dummySpell->Id)
         {
@@ -16277,14 +16295,16 @@ bool Unit::IsTriggeredAtSpellProcEvent (Unit *pVictim, Aura * aura, SpellEntry c
     {
         bool allow = false;
 
-        if (pVictim)
-            allow = ToPlayer()->isHonorOrXPTarget(pVictim);
+		if (pVictim)
+            if (!ToPlayer()->isHonorOrXPTarget(pVictim))
+                return false;
 
         // Shadow Word: Death & Victory Rush - can trigger from every kill
-        if (aura->GetId() == 32409 || aura->GetId() == 32215)
-            allow = true;
-        if (!allow)
-            return false;
+        if (aura->GetId() == 32409 || (aura->GetId() == 32215 && !pVictim->isTotem() && (pVictim->GetCreatureType() != CREATURE_TYPE_CRITTER)))
+			allow = true;
+		
+		if (!allow)
+			return false;
     }
     // Aura added by spell can`t trigger from self (prevent drop charges/do triggers)
     // But except periodic and kill triggers (can triggered from self)
