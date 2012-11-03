@@ -312,7 +312,7 @@ void AnticheatMgr::SpeedHackDetection(Player* player,MovementInfo movementInfo)
         return;
 	}
 
-    float speed = 0;
+    float auraspeed = 0;
 	int32 main_speed_mod = 0;
     float stack_bonus = 1.0f;
     float non_stack_bonus = 1.0f;
@@ -324,14 +324,14 @@ void AnticheatMgr::SpeedHackDetection(Player* player,MovementInfo movementInfo)
 			main_speed_mod = player->GetMaxPositiveAuraModifier(SPELL_AURA_MOD_INCREASE_MOUNTED_SPEED);
 			stack_bonus = player->GetTotalAuraMultiplier(SPELL_AURA_MOD_MOUNTED_SPEED_ALWAYS);
 			non_stack_bonus = (100.0f + player->GetMaxPositiveAuraModifier(SPELL_AURA_MOD_MOUNTED_SPEED_NOT_STACK)) / 100.0f;
-            speed = main_speed_mod+stack_bonus+non_stack_bonus;
+            auraspeed = main_speed_mod+stack_bonus+non_stack_bonus;
         }
         else
         {
             main_speed_mod = player->GetMaxPositiveAuraModifier(SPELL_AURA_MOD_INCREASE_SPEED);
             stack_bonus = player->GetTotalAuraMultiplier(SPELL_AURA_MOD_SPEED_ALWAYS);
             non_stack_bonus = (100.0f + player->GetMaxPositiveAuraModifier(SPELL_AURA_MOD_SPEED_NOT_STACK)) / 100.0f;
-            speed = main_speed_mod+stack_bonus+non_stack_bonus;
+            auraspeed = main_speed_mod+stack_bonus+non_stack_bonus;
         }
 		
 		/*
@@ -380,13 +380,10 @@ void AnticheatMgr::SpeedHackDetection(Player* player,MovementInfo movementInfo)
 	//this has changed since 335a was 1000 in 406a its 1100
     uint32 clientSpeedRate = distance2D * 1100 / timeDiff;
 
-    sLog->outError("fallxy %f fallz %f Distance2D %u clientSpeedRate %u speedRate %u auraspeed %u timeDiff %u ",movementInfo.j_xyspeed, movementInfo.j_zspeed,distance2D,clientSpeedRate,speedRate,speed,timeDiff);
+    sLog->outError("fallxy %f fallz %f Distance2D %u clientSpeedRate %u speedRate %u auraspeed %u timeDiff %u ",movementInfo.j_xyspeed, movementInfo.j_zspeed,distance2D,clientSpeedRate,speedRate,auraspeed,timeDiff);
     
-    // edit clientSpeedRate for auras.....
-    clientSpeedRate = clientSpeedRate+speed;
-
     // we did the (uint32) cast to accept a margin of tolerance
-    if (clientSpeedRate > speedRate)
+    if ((clientSpeedRate+auraspeed) > (speedRate+auraspeed))
     {
         BuildReport(player,SPEED_HACK_REPORT);
         sLog->outError("Speed Hack Player LowGuid %u",player->GetGUIDLow());
