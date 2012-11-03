@@ -314,8 +314,8 @@ void AnticheatMgr::SpeedHackDetection(Player* player,MovementInfo movementInfo)
 
     float auraspeed = 0;
 	int32 main_speed_mod = 0;
-    float stack_bonus = 1.0f;
-    float non_stack_bonus = 1.0f;
+    float stack_bonus = 0.0f;
+    float non_stack_bonus = 0.0f;
     if (moveType == MOVE_RUN)
     {
         
@@ -378,7 +378,7 @@ void AnticheatMgr::SpeedHackDetection(Player* player,MovementInfo movementInfo)
 
     // this is the distance doable by the player in 1 sec, using the time done to move to this point.
 	//this has changed since 335a was 1000 in 406a its 1100
-    uint32 clientSpeedRate = distance2D * 1100 / timeDiff;
+    uint32 clientSpeedRate = (distance2D * 1100 / timeDiff) + auraspeed;
 
     sLog->outError("fallxy %f fallz %f Distance2D %u clientSpeedRate %u speedRate %u auraspeed %f timeDiff %u ",movementInfo.j_xyspeed, movementInfo.j_zspeed,distance2D,clientSpeedRate,speedRate,auraspeed,timeDiff);
     
