@@ -318,45 +318,20 @@ void AnticheatMgr::SpeedHackDetection(Player* player,MovementInfo movementInfo)
     float non_stack_bonus = 0.0f;
     if (moveType == MOVE_RUN)
     {
-        
 		if (player->IsMounted())
 		{
 			main_speed_mod = player->GetMaxPositiveAuraModifier(SPELL_AURA_MOD_INCREASE_MOUNTED_SPEED);
 			stack_bonus = player->GetTotalAuraMultiplier(SPELL_AURA_MOD_MOUNTED_SPEED_ALWAYS);
 			non_stack_bonus = (100.0f + player->GetMaxPositiveAuraModifier(SPELL_AURA_MOD_MOUNTED_SPEED_NOT_STACK)) / 100.0f;
-            auraspeed = main_speed_mod+stack_bonus+non_stack_bonus;
+            auraspeed = main_speed_mod+stack_bonus+non_stack_bonus-2; // remove 2 for tollerance uint32 cast
         }
         else
         {
             main_speed_mod = player->GetMaxPositiveAuraModifier(SPELL_AURA_MOD_INCREASE_SPEED);
             stack_bonus = player->GetTotalAuraMultiplier(SPELL_AURA_MOD_SPEED_ALWAYS);
             non_stack_bonus = (100.0f + player->GetMaxPositiveAuraModifier(SPELL_AURA_MOD_SPEED_NOT_STACK)) / 100.0f;
-            auraspeed = main_speed_mod+stack_bonus+non_stack_bonus;
+            auraspeed = main_speed_mod+stack_bonus+non_stack_bonus-2; // remove 2 for tollerance uint32 cast
         }
-		
-		/*
-		if (
-        player->HasAura(2645)  ||  // 2645 -> Ghost Worlf
-        player->HasAura(17002) ||  // 17002 -> Feral Swiftness 1
-        player->HasAura(24866) ||  // 24866 -> Feral Swiftness 2
-        player->HasAura(32223) ||  // 32223 -> Crusader Aura < do we need this????
-        player->HasAura(13141) ||  // 13141 -> Gnomish Rocket Boots
-        player->HasAura(8892)  ||  // 8892 -> Goblin Rocket Boots
-        player->HasAura(51721) ||  // 51721 -> Dominion Over Acherus
-        player->HasAura(51721) ||  // 51721 -> Rocket Jump
-        player->HasAura(68992) ||  // 68992 -> Darkflight
-        player->HasAura(1850)  ||  // 1850 -> Dash
-        player->HasAura(5215)  ||  // 5215 -> Prowl (Cat Form)  // seems to trigger false positive???
-        player->HasAura(2983)  ||  // 2983 -> Sprint
-        player->HasAura(68212) ||  // 68212 -> Weed Whacker
-        player->HasAura(75627) ||  // 75627 -> Speedbarge Diving Helm
-        player->HasAura(16188) ||  // 16188 -> Ancestral Swiftness // seems to trigger maybe ghost wolf???
-        player->HasAura(40120) ||  // 40120 -> Swift Flight Form  // do we need this here?? 
-        player->HasAura(87840)     // 87840 -> Running Wild
-        // this isnt good, need way to work out speed of these auras instead of just skipping ppl with them.
-        )
-        return;
-		*/
     }
 
     if (moveType == MOVE_FLIGHT)
@@ -365,7 +340,6 @@ void AnticheatMgr::SpeedHackDetection(Player* player,MovementInfo movementInfo)
     //if so were is dif mount speeds worked out????
     return;
     }
-    
  
     // how many yards the player can do in one sec.
     uint32 speedRate = (uint32)(player->GetSpeed(UnitMoveType(moveType)) + movementInfo.j_xyspeed + auraspeed);
@@ -380,7 +354,7 @@ void AnticheatMgr::SpeedHackDetection(Player* player,MovementInfo movementInfo)
 	//this has changed since 335a was 1000 in 406a its 1100
     uint32 clientSpeedRate = (distance2D * 1100 / timeDiff) + auraspeed;
 
-    sLog->outError("fallxy %f fallz %f Distance2D %u clientSpeedRate %u speedRate %u auraspeed %f timeDiff %u ",movementInfo.j_xyspeed, movementInfo.j_zspeed,distance2D,clientSpeedRate,speedRate,auraspeed,timeDiff);
+    sLog->outError("fallxy %f fallz %f Distance2D %u clientSpeedRate %u speedRate %u auraspeed %u timeDiff %u ",movementInfo.j_xyspeed, movementInfo.j_zspeed,distance2D,clientSpeedRate,speedRate,auraspeed,timeDiff);
     
     // we did the (uint32) cast to accept a margin of tolerance
     if (clientSpeedRate > speedRate)
