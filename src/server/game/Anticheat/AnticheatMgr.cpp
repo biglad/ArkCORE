@@ -314,7 +314,9 @@ void AnticheatMgr::SpeedHackDetection(Player* player,MovementInfo movementInfo)
 
     float auraspeed = 0;
 	int32 main_speed_mod = 0;
+    int32 main_speed_mod_fly = 0;
     float stack_bonus = 0.0f;
+    float stack_bonus_fly = 0.0f;
     float non_stack_bonus = 0.0f;
     if (moveType == MOVE_RUN)
     {
@@ -323,14 +325,16 @@ void AnticheatMgr::SpeedHackDetection(Player* player,MovementInfo movementInfo)
 			main_speed_mod = player->GetMaxPositiveAuraModifier(SPELL_AURA_MOD_INCREASE_MOUNTED_SPEED);
 			stack_bonus = player->GetTotalAuraMultiplier(SPELL_AURA_MOD_MOUNTED_SPEED_ALWAYS);
 			non_stack_bonus = (100.0f + player->GetMaxPositiveAuraModifier(SPELL_AURA_MOD_MOUNTED_SPEED_NOT_STACK)) / 100.0f;
-            auraspeed = main_speed_mod+stack_bonus+non_stack_bonus-2; // remove 2 for tollerance uint32 cast
+            main_speed_mod_fly = player->GetMaxPositiveAuraModifier(SPELL_AURA_MOD_INCREASE_VEHICLE_FLIGHT_SPEED);
+            stack_bonus_fly = player->GetTotalAuraMultiplier(SPELL_AURA_MOD_VEHICLE_SPEED_ALWAYS);
+            auraspeed = main_speed_mod + stack_bonus + non_stack_bonus + main_speed_mod_fly + stack_bonus_fly - 4; // remove 4 for tollerance uint32 cast
         }
         else
         {
             main_speed_mod = player->GetMaxPositiveAuraModifier(SPELL_AURA_MOD_INCREASE_SPEED);
             stack_bonus = player->GetTotalAuraMultiplier(SPELL_AURA_MOD_SPEED_ALWAYS);
             non_stack_bonus = (100.0f + player->GetMaxPositiveAuraModifier(SPELL_AURA_MOD_SPEED_NOT_STACK)) / 100.0f;
-            auraspeed = main_speed_mod+stack_bonus+non_stack_bonus-2; // remove 2 for tollerance uint32 cast
+            auraspeed = main_speed_mod+stack_bonus+non_stack_bonus-4; // remove 3 for tollerance uint32 cast
         }
     }
 
