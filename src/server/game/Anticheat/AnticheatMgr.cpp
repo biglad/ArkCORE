@@ -19,7 +19,11 @@
 
 #include "gamePCH.h"
 #include "AnticheatMgr.h"
+#include "Unit.h"
 #include "Chat.h"
+#include "SpellMgr.h"
+#include "SpellAuras.h"
+#include "SpellAuraEffects.h"
 #include "../ArkChat/IRCClient.h"
 
 AnticheatMgr::AnticheatMgr()
@@ -29,6 +33,7 @@ AnticheatMgr::AnticheatMgr()
 AnticheatMgr::~AnticheatMgr()
 {
 }
+
 
 void AnticheatMgr::DeletePlayerReport(Player* player)
 {
@@ -261,8 +266,8 @@ void AnticheatMgr::SpeedHackDetection(Player* player,MovementInfo movementInfo)
         return;
     if (player->isGameMaster())
         return;
-    if (player->IsMounted())
-        return;
+   // if (player->IsMounted())
+   //     return;
 	if (player->HasUnitState(UNIT_STAT_ONVEHICLE))
 	    return;
     if (player->HasUnitMovementFlag(MOVEMENTFLAG_ONTRANSPORT))
@@ -307,10 +312,30 @@ void AnticheatMgr::SpeedHackDetection(Player* player,MovementInfo movementInfo)
         return;
 	}
 
-    float *speed = 0;
+    float speed = 0;
+	int32 main_speed_mod = 0;
+    float stack_bonus = 1.0f;
+    float non_stack_bonus = 1.0f;
     if (moveType == MOVE_RUN)
     {
-        if (
+        
+		if (player->IsMounted())
+		{
+			main_speed_mod = player->GetMaxPositiveAuraModifier(SPELL_AURA_MOD_INCREASE_MOUNTED_SPEED);
+			stack_bonus = player->GetTotalAuraMultiplier(SPELL_AURA_MOD_MOUNTED_SPEED_ALWAYS);
+			non_stack_bonus = (100.0f + player->GetMaxPositiveAuraModifier(SPELL_AURA_MOD_MOUNTED_SPEED_NOT_STACK)) / 100.0f;
+        }
+        else
+        {
+            main_speed_mod = player->GetMaxPositiveAuraModifier(SPELL_AURA_MOD_INCREASE_SPEED);
+            stack_bonus = player->GetTotalAuraMultiplier(SPELL_AURA_MOD_SPEED_ALWAYS);
+            non_stack_bonus = (100.0f + player->GetMaxPositiveAuraModifier(SPELL_AURA_MOD_SPEED_NOT_STACK)) / 100.0f;
+        }
+		speed = main_speed_mod+stack_bonus+non_stack_bonus;
+
+
+		/*
+		if (
         player->HasAura(2645)  ||  // 2645 -> Ghost Worlf
         player->HasAura(17002) ||  // 17002 -> Feral Swiftness 1
         player->HasAura(24866) ||  // 24866 -> Feral Swiftness 2
@@ -331,6 +356,7 @@ void AnticheatMgr::SpeedHackDetection(Player* player,MovementInfo movementInfo)
         // this isnt good, need way to work out speed of these auras instead of just skipping ppl with them.
         )
         return;
+		*/
     }
 
     if (moveType == MOVE_FLIGHT)
@@ -344,7 +370,7 @@ void AnticheatMgr::SpeedHackDetection(Player* player,MovementInfo movementInfo)
     // how many yards the player can do in one sec.
     uint32 speedRate = (uint32)(player->GetSpeed(UnitMoveType(moveType)) + movementInfo.j_xyspeed);
 
-	// edit speedrate for mounts....
+	// edit speedrate for auras.....
 	speedRate = speedRate+(uint32)speed;
 
     // how long the player took to move to here.
