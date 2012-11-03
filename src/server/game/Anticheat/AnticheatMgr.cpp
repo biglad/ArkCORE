@@ -302,8 +302,7 @@ void AnticheatMgr::SpeedHackDetection(Player* player,MovementInfo movementInfo)
         moveType = MOVE_WALK;
     else
         moveType = MOVE_RUN;
-
-        
+    
     if (moveType == MOVE_SWIM)
     {
         // no need for mount check
@@ -349,8 +348,8 @@ void AnticheatMgr::SpeedHackDetection(Player* player,MovementInfo movementInfo)
         timeDiff = 1;
 
     // this is the distance doable by the player in 1 sec, using the time done to move to this point.
-	//this has changed since 335a was 1000 in 406a its 1150
-    uint32 clientSpeedRate = (distance2D * 1150 / timeDiff) + auraspeed;
+	//this has changed since 335a was 1000
+    uint32 clientSpeedRate = (distance2D * 1000 / timeDiff) + auraspeed;
 
     sLog->outError("fallxy %f fallz %f Distance2D %u clientSpeedRate %u speedRate %u auraspeed %u timeDiff %u ",movementInfo.j_xyspeed, movementInfo.j_zspeed,distance2D,clientSpeedRate,speedRate,auraspeed,timeDiff);
     
